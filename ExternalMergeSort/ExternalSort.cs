@@ -14,33 +14,51 @@ namespace ExternalMergeSort
 		/// Min value is 2
 		/// </summary>
 		protected const int auxFilesNumber = 2;
+		protected const string workingDir = @"C:\Users\Lorenzofman\Documents\ExternalSortingWorkingDir\";
 		static void Main()
 		{
-			StreamWriter[] writers = CreateAuxFiles("BigFile.txt", out StreamReader reader);
+			StreamReader reader = new StreamReader(workingDir + "BigFile.txt");
+			StreamWriter[] writers = CreateAuxFiles(workingDir);
 			PopulateFiles(writers,reader);
+			CloseWriters(writers);
+		}
+		private static void CloseWriters(StreamWriter[] writers)
+		{
+			foreach(StreamWriter writer in writers)
+			{
+				writer.Close();
+			}
 		}
 		private static void PopulateFiles(StreamWriter[] writers, StreamReader reader)
 		{
+			int currentWriter = 0;
 			while (!reader.EndOfStream)
 			{
-				char[] block = ReadRamSize(reader);
+				List<char> blockList = ReadRamSize(reader);
+				blockList.Sort();
+				foreach(char ch in blockList)
+					writers[currentWriter % auxFilesNumber].Write(ch);
+				currentWriter++;
 			}
 		}
-		private static char[] ReadRamSize(StreamReader reader)
+		private static List<char> ReadRamSize(StreamReader reader)
 		{
+			List<char> blockList = new List<char>();
 			char[] block = new char[ramSize];
-			reader.ReadBlock(block, 0, ramSize);
-			return block;
+			int readCount = reader.ReadBlock(block, 0, ramSize);
+			for (int i = 0; i < readCount; i++)
+			{
+				blockList.Add(block[i]);
+			}
+			return blockList;
 		}
-		private static StreamWriter[] CreateAuxFiles(string path, out StreamReader reader)
+		private static StreamWriter[] CreateAuxFiles(string workingDir)
 		{
-			reader = new StreamReader(path);
-			StreamWriter[] writers = new StreamWriter[auxFilesNumber + 1];
+			StreamWriter[] writers = new StreamWriter[auxFilesNumber];
 			for(int i = 0; i < auxFilesNumber; i++)
 			{
-				writers[i] = new StreamWriter("Aux" + i);
+				writers[i] = new StreamWriter(workingDir + "Aux" + i + ".txt");
 			}
-			writers[auxFilesNumber] = new StreamWriter(path);
 			return writers;
 		}
 
