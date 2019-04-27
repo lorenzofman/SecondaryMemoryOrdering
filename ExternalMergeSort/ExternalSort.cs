@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace ExternalMergeSort
@@ -12,16 +13,22 @@ namespace ExternalMergeSort
 		protected const int ramSize = 3;
 
 		protected const int auxFilesNumber = 2;
+
 		protected const string workingDir = @"C:\Users\Lorenzofman\Documents\ExternalSortingWorkingDir\";
+
+		private static long fileSize = 0;
 		static void Main()
 		{
 			string mainFilePath = workingDir + "BigFile.txt";
 			StreamReader mainReader = new StreamReader(mainFilePath);
+			fileSize = mainReader.BaseStream.Length;
 			StreamWriter[] writers = CreateAuxFiles(workingDir, out string[] paths);
 			PopulateAuxFiles(writers,mainReader);
 			StreamWriter mainWriter = SwitchStream(mainReader);
-			MergeAuxFiles(mainWriter, paths);
-			CloseAuxFiles(writers);
+			StreamReader[] streamReaders = SwitchStreams(writers);
+			MergeAuxFiles(mainWriter, streamReaders);
+			CloseStreamWriters(writers);
+			mainWriter.Close();	
 
 		}
 
@@ -55,33 +62,34 @@ namespace ExternalMergeSort
 		private static StreamWriter SwitchStream(StreamReader reader)
 		{
 			string path = (reader.BaseStream as FileStream).Name;
-			reader.BaseStream.SetLength(0);
 			reader.Close();
-			return new StreamWriter(path);
+			StreamWriter writer = new StreamWriter(path,false);
+			return writer;
 		}
 
-		private static void MergeAuxFiles(StreamWriter output, string[] paths)
+		private static void MergeAuxFiles(StreamWriter output, StreamReader[] readers)
 		{
-			FileStream[] streams = new FileStream[paths.Length];
-			for(int i = 0; i < paths.Length; i++)
+			for (int max = ramSize; max < fileSize; max += ramSize)
 			{
-				streams[i] = new FileStream(paths[i], FileMode.Open);
-			}
-			while (SmallestChar(streams, out char smallest))
-			{
-				output.Write(smallest);
+				while (SmallestChar(readers, max, out char smallest))
+				{
+					output.Write(smallest);
+				}
 			}
 		}
 
-
-		private static bool SmallestChar(FileStream[] streams, out char smallest)
+		private static bool SmallestChar(StreamReader[] readers,int max, out char smallest)
 		{
 			smallest = char.MaxValue;
-			int streamIdx = 0;
-			for(int i = 0; i < streams.Length; i++)
+			int streamIdx = -1;
+			for(int i = 0; i < readers.Length; i++)
 			{
-				char ch = (char)streams[i].ReadByte();
-				if(ch == -1)
+				if(readers[i].BaseStream.Position >= max)
+				{
+					continue;
+				}
+				char ch = (char)(readers[i].BaseStream).ReadByte();
+				if(ch == char.MaxValue)
 				{
 					continue;
 				}
@@ -90,15 +98,17 @@ namespace ExternalMergeSort
 					smallest = ch;
 					streamIdx = i;
 				}
-				streams[i].Seek(-1, SeekOrigin.Current);
+				readers[i].BaseStream.Seek(-1, SeekOrigin.Current);
 			}
-			streams[streamIdx].Seek(1, SeekOrigin.Current);
+			if(streamIdx != -1)
+				readers[streamIdx].BaseStream.Seek(1, SeekOrigin.Current);
 			if (smallest == char.MaxValue)
 				return false;
 			return true;
 		}
 
-		private static void CloseAuxFiles(StreamWriter[] writers)
+		
+		private static void CloseStreamWriters(StreamWriter[] writers)
 		{
 			foreach(StreamWriter writer in writers)
 			{
@@ -141,19 +151,6 @@ namespace ExternalMergeSort
 				writers[i] = new StreamWriter(paths[i]);
 			}
 			return writers;
-		}
-
-		private static string ConvertListOfCharToString(List<char> list)
-		{
-			string str = "";
-			foreach (char c in list)
-				str += c;
-			return str;
-		}
-
-		private static List<char> CreateRandomText()
-		{
-			return new List<char>("LorenzoSchwertnerKaufmann");
 		}
 
 	}
