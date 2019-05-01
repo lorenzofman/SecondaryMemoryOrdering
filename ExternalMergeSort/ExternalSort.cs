@@ -1,10 +1,6 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.IO;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace ExternalMergeSort
 {
@@ -35,26 +31,26 @@ namespace ExternalMergeSort
 			{
 				StreamReader[] readers = SwitchStreams(writers);
 				writers = CreateAuxFiles(workingDir,(i+1)*auxFilesNumber, (i+2)*auxFilesNumber);
-				IntercalateAuxFiles(writers, readers,(int)Math.Pow(2,i)*ramSize);
+				IntercalateAuxFiles(writers, readers,(int)Math.Pow(ramSize,i)*ramSize);
 			}
 			CloseStreamWriters(writers);
 		}
 
 		private static void IntercalateAuxFiles(StreamWriter[] writers, StreamReader[] readers, int blockSize)
 		{
-			int iterations = (int)Math.Ceiling((double) fileSize / blockSize);
+			int newBlockSize = blockSize * ramSize;
+			int iterations = (int)Math.Ceiling((double) fileSize / newBlockSize);
 			for (int i = 0; i < iterations; i++)
 			{
-				MergeIteration(writers[i % auxFilesNumber], readers, (i+1) * blockSize,blockSize);
+				MergeIteration(writers[i % auxFilesNumber], readers, (i+1)*blockSize);
 			}
 		}
 
-		private static void MergeIteration(StreamWriter output, StreamReader[] readers,int max, int blockSize)
+		private static void MergeIteration(StreamWriter output, StreamReader[] readers,int max)
 		{
-			for (int i = 0; i < blockSize*2; i++)
-			{
-				if(SmallestChar(readers, max, out char smallest))
-					output.Write(smallest);
+			while(SmallestChar(readers, max, out char smallest))
+			{ 
+				output.Write(smallest);
 			}
 		}
 
@@ -158,6 +154,9 @@ namespace ExternalMergeSort
 				string filename = (writers[i].BaseStream as FileStream).Name;
 				writers[i].Close();
 				readers[i] = new StreamReader(filename);
+				readers[i].BaseStream.Position = 0;
+				readers[i].DiscardBufferedData();
+				readers[i].BaseStream.Seek(0, SeekOrigin.Begin);
 			}
 			return readers;
 		}
