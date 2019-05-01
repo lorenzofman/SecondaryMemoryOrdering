@@ -8,11 +8,11 @@ namespace ExternalMergeSort
 		/// <summary>
 		/// When on doesn't create aux files that won't be used, the advantage, however, of create the aux files is that you can trace down every iteration 
 		/// </summary>
-		public static bool createOnlyNecessaryAuxFiles = true;
+		public static bool createOnlyNecessaryAuxFiles = false;
 
-		protected const int ramSize = 16;
+		protected const int ramSize = 2;
 
-		protected const int maxAuxFilesNumber = 16;
+		protected const int maxAuxFilesNumber = 4;
 
 		protected const string workingDir = @"C:\Users\Lorenzofman\Documents\ExternalSortingWorkingDir\";
 
@@ -62,7 +62,8 @@ namespace ExternalMergeSort
 				StreamReader[] readers = SwitchStreams(writers);
 				int blockSize = (int)Math.Pow(ramSize, i) * ramSize;
 				writers = CreateAuxFiles(workingDir, blockSize * maxAuxFilesNumber);
-				IntercalateAuxFiles(writers, readers, blockSize);
+				int x = (int)Math.Pow(2,i) * ramSize;
+				IntercalateAuxFiles(writers, readers, x);
 			}
 			CloseStreamWriters(writers);
 		}
@@ -70,7 +71,7 @@ namespace ExternalMergeSort
 		private static void IntercalateAuxFiles(StreamWriter[] writers, StreamReader[] readers, int blockSize)
 		{
 			int newBlockSize = blockSize * ramSize;
-			int iterations = (int)Math.Ceiling((double) fileSize / newBlockSize);
+			int iterations = (int)Math.Ceiling((double) fileSize / (blockSize * maxAuxFilesNumber));
 			for (int i = 0; i < iterations; i++)
 			{
 				MergeIteration(writers[i % maxAuxFilesNumber], readers, (i+1)*blockSize);
