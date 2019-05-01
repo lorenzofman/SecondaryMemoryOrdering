@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
 
 namespace ExternalMergeSort
@@ -101,23 +100,31 @@ namespace ExternalMergeSort
 				for (int i = 0; i < readSize; i += size)
 				{
 					int validCharCount = reader.ReadBlock(block, 0, size);
-
-					block = SortArray(block, validCharCount);
-					writers[currentWriter % auxFilesNumber].Write(block);
+					block = SelectionSort(block, validCharCount);
+					writers[currentWriter % auxFilesNumber].Write(block,0,validCharCount);
 				}
 				currentWriter++;
 			}
 		}
 
-		private static char[] SortArray(char[] array, int validCharCount)
+		private static char[] SelectionSort(char[] array, int validCharCount)
 		{
-			List<char> list = new List<char>();
-			for(int i = 0; i< validCharCount; i++)
+			for(int i = 0; i < validCharCount; i++)
 			{
-				list.Add(array[i]);
+				int idx = i;
+				char min = array[i];
+				for (int j = i+1; j < validCharCount; j++)
+				{
+					if(array[j] < min)
+					{
+						idx = j;
+						min = array[j];
+					}
+				}
+				array[idx] = array[i];
+				array[i] = min;
 			}
-			list.Sort();
-			return list.ToArray();
+			return array;
 		}
 
 		private static int Min (int a, int b)
