@@ -8,17 +8,19 @@ namespace ExternalMergeSort
 		/// <summary>
 		/// When on doesn't create aux files that won't be used, the advantage, however, of create the aux files is that you can trace down every iteration 
 		/// </summary>
-		public static bool createOnlyNecessaryAuxFiles = false;
+		public static bool createOnlyNecessaryAuxFiles = true;
 
-		protected const int ramSize = 2;
+		protected const int ramSize = 5;
 
-		protected const int maxAuxFilesNumber = 4;
+		protected const int maxAuxFilesNumber = 3;
 
 		protected const string workingDir = @"C:\Users\Lorenzofman\Documents\ExternalSortingWorkingDir\";
 
 		private static long fileSize = 0;
 
 		private static int auxNumber;
+
+		private static int blockSize;
 
 		private static int AuxNumber
 		{
@@ -32,19 +34,6 @@ namespace ExternalMergeSort
 		{
 			string mainFilePath = workingDir + "BigFile.txt";
 			FMeansInterleaving(mainFilePath);
-			StreamReader sr = new StreamReader(workingDir + "Output.txt");
-			string str = sr.ReadToEnd();
-			if (sr.BaseStream.Length != fileSize)
-			{
-				throw new Exception("File sizes doesn't match");
-			}
-			for (int i = 0; i < str.Length - 1; i++)
-			{
-				if (str[i] > str[i + 1])
-				{
-					throw new Exception("Output isn't ordered");
-				}
-			}
 		}
 		private static void PolyphasicInterleaving (string mainFilePath)
 		{
@@ -54,16 +43,18 @@ namespace ExternalMergeSort
 		{
 			StreamReader mainReader = new StreamReader(mainFilePath);
 			fileSize = mainReader.BaseStream.Length;
-			StreamWriter[] writers = CreateAuxFiles(workingDir,ramSize);
+			blockSize = ramSize;
+			StreamWriter[] writers = CreateAuxFiles(workingDir, blockSize);
 			PopulateAuxFiles(writers, ramSize, mainReader);
 			int intercalationsRequired = (int)Math.Ceiling(Math.Log((float)fileSize/ramSize,maxAuxFilesNumber));
 			for(int i = 0; i < intercalationsRequired; i++)
-			{
+			{ 
 				StreamReader[] readers = SwitchStreams(writers);
-				int blockSize = (int)Math.Pow(ramSize, i) * ramSize;
+				//int blockSize = (int)Math.Pow(ramSize, i) * ramSize;
 				writers = CreateAuxFiles(workingDir, blockSize * maxAuxFilesNumber);
 				int x = (int)Math.Pow(2,i) * ramSize;
-				IntercalateAuxFiles(writers, readers, x);
+				IntercalateAuxFiles(writers, readers, blockSize);
+				blockSize *= maxAuxFilesNumber;
 			}
 			CloseStreamWriters(writers);
 		}
