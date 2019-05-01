@@ -10,9 +10,9 @@ namespace ExternalMergeSort
 		/// </summary>
 		public static bool createOnlyNecessaryAuxFiles = true;
 
-		protected const int ramSize = 3;
+		protected const int ramSize = 16;
 
-		protected const int maxAuxFilesNumber = 3;
+		protected const int maxAuxFilesNumber = 16;
 
 		protected const string workingDir = @"C:\Users\Lorenzofman\Documents\ExternalSortingWorkingDir\";
 
@@ -32,6 +32,19 @@ namespace ExternalMergeSort
 		{
 			string mainFilePath = workingDir + "BigFile.txt";
 			FMeansInterleaving(mainFilePath);
+			StreamReader sr = new StreamReader(workingDir + "Output.txt");
+			string str = sr.ReadToEnd();
+			if (sr.BaseStream.Length != fileSize)
+			{
+				throw new Exception("File sizes doesn't match");
+			}
+			for (int i = 0; i < str.Length - 1; i++)
+			{
+				if (str[i] > str[i + 1])
+				{
+					throw new Exception("Output isn't ordered");
+				}
+			}
 		}
 		private static void PolyphasicInterleaving (string mainFilePath)
 		{
@@ -48,7 +61,7 @@ namespace ExternalMergeSort
 			{
 				StreamReader[] readers = SwitchStreams(writers);
 				int blockSize = (int)Math.Pow(ramSize, i) * ramSize;
-				writers = CreateAuxFiles(workingDir, blockSize * ramSize);
+				writers = CreateAuxFiles(workingDir, blockSize * maxAuxFilesNumber);
 				IntercalateAuxFiles(writers, readers, blockSize);
 			}
 			CloseStreamWriters(writers);
