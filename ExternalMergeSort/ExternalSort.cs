@@ -35,7 +35,7 @@ namespace ExternalMergeSort
 			{
 				StreamReader[] readers = SwitchStreams(writers);
 				writers = CreateAuxFiles(workingDir,(i+1)*auxFilesNumber, (i+2)*auxFilesNumber);
-				IntercalateAuxFiles(writers, readers,(i+1)*ramSize);
+				IntercalateAuxFiles(writers, readers,(int)Math.Pow(2,i)*ramSize);
 			}
 			CloseStreamWriters(writers);
 		}
@@ -45,33 +45,31 @@ namespace ExternalMergeSort
 			int iterations = (int)Math.Ceiling((double) fileSize / blockSize);
 			for (int i = 0; i < iterations; i++)
 			{
-				MergeIteration(writers[i % auxFilesNumber], readers,blockSize);
+				MergeIteration(writers[i % auxFilesNumber], readers, (i+1) * blockSize,blockSize);
 			}
 		}
 
-		private static void MergeIteration(StreamWriter output, StreamReader[] readers, int blockSize)
+		private static void MergeIteration(StreamWriter output, StreamReader[] readers,int max, int blockSize)
 		{
-			for (int max = ramSize; max < fileSize; max += ramSize)
+			for (int i = 0; i < blockSize*2; i++)
 			{
-				while (SmallestChar(readers, max, out char smallest))
-				{
+				if(SmallestChar(readers, max, out char smallest))
 					output.Write(smallest);
-				}
 			}
 		}
 
-		private static bool SmallestChar(StreamReader[] readers,int max, out char smallest)
+		private static bool SmallestChar(StreamReader[] readers, int max, out char smallest)
 		{
 			smallest = char.MaxValue;
 			int streamIdx = -1;
-			for(int i = 0; i < readers.Length; i++)
+			for (int i = 0; i < readers.Length; i++)
 			{
-				if(readers[i].BaseStream.Position >= max)
+				if (readers[i].BaseStream.Position >= max)
 				{
 					continue;
 				}
 				char ch = (char)(readers[i].BaseStream).ReadByte();
-				if(ch == char.MaxValue)
+				if (ch == char.MaxValue)
 				{
 					continue;
 				}
@@ -82,7 +80,7 @@ namespace ExternalMergeSort
 				}
 				readers[i].BaseStream.Seek(-1, SeekOrigin.Current);
 			}
-			if(streamIdx != -1)
+			if (streamIdx != -1)
 				readers[streamIdx].BaseStream.Seek(1, SeekOrigin.Current);
 			if (smallest == char.MaxValue)
 				return false;
