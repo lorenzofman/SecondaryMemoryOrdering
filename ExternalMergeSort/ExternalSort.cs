@@ -12,62 +12,44 @@ namespace ExternalMergeSort
 	{
 		protected const int ramSize = 3;
 
-		protected const int auxFilesNumber = 2;
+		protected const int auxFilesNumber = 3;
 
 		protected const string workingDir = @"C:\Users\Lorenzofman\Documents\ExternalSortingWorkingDir\";
 
 		private static long fileSize = 0;
+
 		static void Main()
 		{
 			string mainFilePath = workingDir + "BigFile.txt";
+			Intercalate(mainFilePath);
+		}
+
+		private static void Intercalate(string mainFilePath)
+		{
 			StreamReader mainReader = new StreamReader(mainFilePath);
 			fileSize = mainReader.BaseStream.Length;
-			StreamWriter[] writers = CreateAuxFiles(workingDir, out string[] paths);
-			PopulateAuxFiles(writers,mainReader);
-			StreamWriter mainWriter = SwitchStream(mainReader);
-			StreamReader[] streamReaders = SwitchStreams(writers);
-			MergeAuxFiles(mainWriter, streamReaders);
+			StreamWriter[] writers = CreateAuxFiles(workingDir, 0,auxFilesNumber);
+			PopulateAuxFiles(writers, ramSize, mainReader);
+			int intercalationsRequired = (int)Math.Ceiling(Math.Log((float)fileSize/ramSize,auxFilesNumber));
+			for(int i = 0; i < intercalationsRequired; i++)
+			{
+				StreamReader[] readers = SwitchStreams(writers);
+				writers = CreateAuxFiles(workingDir,(i+1)*auxFilesNumber, (i+2)*auxFilesNumber);
+				IntercalateAuxFiles(writers, readers,(i+1)*ramSize);
+			}
 			CloseStreamWriters(writers);
-			mainWriter.Close();	
-
 		}
 
-		private static StreamReader[] SwitchStreams(StreamWriter[] writers)
+		private static void IntercalateAuxFiles(StreamWriter[] writers, StreamReader[] readers, int blockSize)
 		{
-			StreamReader[] streamReaders = new StreamReader[writers.Length];
-			for(int i = 0; i < writers.Length; i++)
+			int iterations = (int)Math.Ceiling((double) fileSize / blockSize);
+			for (int i = 0; i < iterations; i++)
 			{
-				streamReaders[i] = SwitchStream(writers[i]);
+				MergeIteration(writers[i % auxFilesNumber], readers,blockSize);
 			}
-			return streamReaders;
 		}
 
-		private static StreamWriter[] SwitchStreams(StreamReader[] readers)
-		{
-			StreamWriter[] streamWriters = new StreamWriter[readers.Length];
-			for (int i = 0; i < readers.Length; i++)
-			{
-				streamWriters[i] = SwitchStream(readers[i]);
-			}
-			return streamWriters;
-		}
-
-		private static StreamReader SwitchStream(StreamWriter writer)
-		{
-			string path = (writer.BaseStream as FileStream).Name;
-			writer.Close();
-			return new StreamReader(path);
-		}
-
-		private static StreamWriter SwitchStream(StreamReader reader)
-		{
-			string path = (reader.BaseStream as FileStream).Name;
-			reader.Close();
-			StreamWriter writer = new StreamWriter(path,false);
-			return writer;
-		}
-
-		private static void MergeAuxFiles(StreamWriter output, StreamReader[] readers)
+		private static void MergeIteration(StreamWriter output, StreamReader[] readers, int blockSize)
 		{
 			for (int max = ramSize; max < fileSize; max += ramSize)
 			{
@@ -107,7 +89,6 @@ namespace ExternalMergeSort
 			return true;
 		}
 
-		
 		private static void CloseStreamWriters(StreamWriter[] writers)
 		{
 			foreach(StreamWriter writer in writers)
@@ -116,41 +97,71 @@ namespace ExternalMergeSort
 			}
 		}
 
-		private static void PopulateAuxFiles(StreamWriter[] writers, StreamReader reader)
+		private static void PopulateAuxFiles(StreamWriter[] writers,int readSize, StreamReader reader)
 		{
 			int currentWriter = 0;
 			while (!reader.EndOfStream)
 			{
-				List<char> blockList = ReadRamSize(reader);
-				blockList.Sort();
-				foreach(char ch in blockList)
-					writers[currentWriter % auxFilesNumber].Write(ch);
+				int size = Min(readSize, ramSize);
+				char[] block = new char[size];
+				for (int i = 0; i < readSize; i += size)
+				{
+					int validCharCount = reader.ReadBlock(block, 0, size);
+
+					block = SortArray(block, validCharCount);
+					writers[currentWriter % auxFilesNumber].Write(block);
+				}
 				currentWriter++;
 			}
 		}
 
-		private static List<char> ReadRamSize(StreamReader reader)
+		private static char[] SortArray(char[] array, int validCharCount)
 		{
-			List<char> blockList = new List<char>();
-			char[] block = new char[ramSize];
-			int readCount = reader.ReadBlock(block, 0, ramSize);
-			for (int i = 0; i < readCount; i++)
+			List<char> list = new List<char>();
+			for(int i = 0; i< validCharCount; i++)
 			{
-				blockList.Add(block[i]);
+				list.Add(array[i]);
 			}
-			return blockList;
+			list.Sort();
+			return list.ToArray();
 		}
 
-		private static StreamWriter[] CreateAuxFiles(string workingDir, out string[] paths)
+		private static int Min (int a, int b)
 		{
-			paths = new string[auxFilesNumber];
-			StreamWriter[] writers = new StreamWriter[auxFilesNumber];
-			for(int i = 0; i < auxFilesNumber; i++)
+			return (a > b) ? b : a;
+		}
+
+		private static char[] ReadFromStream(StreamReader reader, int readSize)
+		{
+			int size = Min(readSize, ramSize);
+			char[] block = new char[size];
+			for (int i = 0; i < readSize; i += size)
 			{
-				paths[i] = workingDir + "Aux" + i + ".txt";
-				writers[i] = new StreamWriter(paths[i]);
+				reader.ReadBlock(block, 0, size);
+			}
+			return block;
+		}
+
+		private static StreamWriter[] CreateAuxFiles(string workingDir,int startIdx, int endIdx)
+		{
+			StreamWriter[] writers = new StreamWriter[auxFilesNumber];
+			for(int i = startIdx; i < endIdx; i++)
+			{
+				writers[i - startIdx] = new StreamWriter(workingDir + "Aux" + i + ".txt");
 			}
 			return writers;
+		}
+
+		private static StreamReader[] SwitchStreams(StreamWriter[] writers)
+		{
+			StreamReader[] readers = new StreamReader[writers.Length];
+			for (int i = 0; i < writers.Length; i++)
+			{
+				string filename = (writers[i].BaseStream as FileStream).Name;
+				writers[i].Close();
+				readers[i] = new StreamReader(filename);
+			}
+			return readers;
 		}
 
 	}
