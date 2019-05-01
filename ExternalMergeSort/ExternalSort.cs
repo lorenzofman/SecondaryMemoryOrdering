@@ -31,10 +31,13 @@ namespace ExternalMergeSort
 		static void Main()
 		{
 			string mainFilePath = workingDir + "BigFile.txt";
-			Intercalate(mainFilePath);
+			FMeansInterleaving(mainFilePath);
 		}
+		private static void PolyphasicInterleaving (string mainFilePath)
+		{
 
-		private static void Intercalate(string mainFilePath)
+		}
+		private static void FMeansInterleaving(string mainFilePath)
 		{
 			StreamReader mainReader = new StreamReader(mainFilePath);
 			fileSize = mainReader.BaseStream.Length;
@@ -151,10 +154,16 @@ namespace ExternalMergeSort
 
 		private static StreamWriter[] CreateAuxFiles(string workingDir,int currentBlockSize)
 		{
-
-			int auxFilesCount = createOnlyNecessaryAuxFiles ? Min((int) Math.Ceiling((float) fileSize/currentBlockSize),maxAuxFilesNumber) : maxAuxFilesNumber;
-			StreamWriter[] writers = new StreamWriter[auxFilesCount];
-			for(int i = 0; i < auxFilesCount; i++)
+			int minAuxFiles = Min((int)Math.Ceiling((float)fileSize / currentBlockSize), maxAuxFilesNumber);
+			if(minAuxFiles == 1)
+			{
+				StreamWriter[] writer = new StreamWriter[1];
+				writer[0] = new StreamWriter(workingDir + "Output.txt");
+				return writer;
+			}
+			int auxFiles = createOnlyNecessaryAuxFiles ? minAuxFiles : maxAuxFilesNumber;
+			StreamWriter[] writers = new StreamWriter[auxFiles];
+			for(int i = 0; i < auxFiles; i++)
 			{
 				writers[i] = new StreamWriter(workingDir + "Aux" + AuxNumber + ".txt");
 			}
