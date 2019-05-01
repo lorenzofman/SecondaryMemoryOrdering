@@ -5,13 +5,28 @@ namespace ExternalMergeSort
 {
 	class ExternalSort
 	{
+		/// <summary>
+		/// When on doesn't create aux files that won't be used, the advantage, however, of create the aux files is that you can trace down every iteration 
+		/// </summary>
+		public static bool createOnlyNecessaryAuxFiles = true;
+
 		protected const int ramSize = 3;
 
-		protected const int auxFilesNumber = 3;
+		protected const int maxAuxFilesNumber = 3;
 
 		protected const string workingDir = @"C:\Users\Lorenzofman\Documents\ExternalSortingWorkingDir\";
 
 		private static long fileSize = 0;
+
+		private static int auxNumber;
+
+		private static int AuxNumber
+		{
+			get
+			{
+				return auxNumber++;
+			}
+		}
 
 		static void Main()
 		{
@@ -23,14 +38,15 @@ namespace ExternalMergeSort
 		{
 			StreamReader mainReader = new StreamReader(mainFilePath);
 			fileSize = mainReader.BaseStream.Length;
-			StreamWriter[] writers = CreateAuxFiles(workingDir, 0,auxFilesNumber);
+			StreamWriter[] writers = CreateAuxFiles(workingDir,ramSize);
 			PopulateAuxFiles(writers, ramSize, mainReader);
-			int intercalationsRequired = (int)Math.Ceiling(Math.Log((float)fileSize/ramSize,auxFilesNumber));
+			int intercalationsRequired = (int)Math.Ceiling(Math.Log((float)fileSize/ramSize,maxAuxFilesNumber));
 			for(int i = 0; i < intercalationsRequired; i++)
 			{
 				StreamReader[] readers = SwitchStreams(writers);
-				writers = CreateAuxFiles(workingDir,(i+1)*auxFilesNumber, (i+2)*auxFilesNumber);
-				IntercalateAuxFiles(writers, readers,(int)Math.Pow(ramSize,i)*ramSize);
+				int blockSize = (int)Math.Pow(ramSize, i) * ramSize;
+				writers = CreateAuxFiles(workingDir, blockSize * ramSize);
+				IntercalateAuxFiles(writers, readers, blockSize);
 			}
 			CloseStreamWriters(writers);
 		}
@@ -41,7 +57,7 @@ namespace ExternalMergeSort
 			int iterations = (int)Math.Ceiling((double) fileSize / newBlockSize);
 			for (int i = 0; i < iterations; i++)
 			{
-				MergeIteration(writers[i % auxFilesNumber], readers, (i+1)*blockSize);
+				MergeIteration(writers[i % maxAuxFilesNumber], readers, (i+1)*blockSize);
 			}
 		}
 
@@ -101,7 +117,7 @@ namespace ExternalMergeSort
 				{
 					int validCharCount = reader.ReadBlock(block, 0, size);
 					block = SelectionSort(block, validCharCount);
-					writers[currentWriter % auxFilesNumber].Write(block,0,validCharCount);
+					writers[currentWriter % maxAuxFilesNumber].Write(block,0,validCharCount);
 				}
 				currentWriter++;
 			}
@@ -132,23 +148,15 @@ namespace ExternalMergeSort
 			return (a > b) ? b : a;
 		}
 
-		private static char[] ReadFromStream(StreamReader reader, int readSize)
-		{
-			int size = Min(readSize, ramSize);
-			char[] block = new char[size];
-			for (int i = 0; i < readSize; i += size)
-			{
-				reader.ReadBlock(block, 0, size);
-			}
-			return block;
-		}
 
-		private static StreamWriter[] CreateAuxFiles(string workingDir,int startIdx, int endIdx)
+		private static StreamWriter[] CreateAuxFiles(string workingDir,int currentBlockSize)
 		{
-			StreamWriter[] writers = new StreamWriter[auxFilesNumber];
-			for(int i = startIdx; i < endIdx; i++)
+
+			int auxFilesCount = createOnlyNecessaryAuxFiles ? Min((int) Math.Ceiling((float) fileSize/currentBlockSize),maxAuxFilesNumber) : maxAuxFilesNumber;
+			StreamWriter[] writers = new StreamWriter[auxFilesCount];
+			for(int i = 0; i < auxFilesCount; i++)
 			{
-				writers[i - startIdx] = new StreamWriter(workingDir + "Aux" + i + ".txt");
+				writers[i] = new StreamWriter(workingDir + "Aux" + AuxNumber + ".txt");
 			}
 			return writers;
 		}
