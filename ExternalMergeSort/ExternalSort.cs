@@ -1,9 +1,91 @@
 ﻿using System;
+using System.Collections;
 using System.IO;
 
 namespace ExternalMergeSort
 {
-	class ExternalSort
+    public class Queue<T>
+    {
+        private Queue queue;
+        public void Enqueue(T obj)
+        {
+            queue.Enqueue(obj);
+        }
+        public T Peek()
+        {
+            return (T) queue.Peek();
+        }
+        public T Dequeue()
+        {
+            return (T) queue.Dequeue();
+        }
+        public int Count
+        {
+            get
+            {
+                return queue.Count;
+            }
+        }
+        public Queue()
+        {
+            queue = new Queue();
+        }
+    }
+
+    public class AuxiliarFiles
+    {
+        private StreamReader reader;
+        private StreamReader intercalator;
+        private Queue<StreamWriter> others;
+        public AuxiliarFiles(StreamWriter[] auxFiles)
+        {
+            this.reader = ExternalSort.SwitchStream(auxFiles[0]);
+            this.intercalator = ExternalSort.SwitchStream(auxFiles[1]);
+            others = new Queue<StreamWriter>();
+            for(int i = 2; i < auxFiles.Length; i++)
+                others.Enqueue(auxFiles[i]);
+        }
+        public void Next()
+        {
+            others.Enqueue(ExternalSort.SwitchStream(reader));
+            reader = intercalator;
+            intercalator = ExternalSort.SwitchStream(others.Dequeue());
+        }
+
+        public void End()
+        {
+            reader.Close();
+            intercalator.Close();
+            while(others.Count > 0)
+            {
+                StreamWriter sw = others.Dequeue();
+                sw.Close();
+            }
+        }
+
+        public StreamReader Reader
+        {
+            get
+            {
+                return this.reader;
+            }
+        }
+        public StreamReader Intercalator
+        {
+            get
+            {
+                return this.intercalator;
+            }
+        }
+        public StreamWriter Writer
+        {
+            get
+            {
+                return others.Peek();
+            }
+        }
+    }
+	public class ExternalSort
 	{
 		/// <summary>
 		/// When on doesn't create aux files that won't be used, the advantage, however, of create the aux files is that you can trace down every iteration 
@@ -29,22 +111,133 @@ namespace ExternalMergeSort
 				return auxNumber++;
 			}
 		}
-
-		static void Main()
+        static bool useFmeans = false;
+        static void Main()
 		{
-			string mainFilePath = workingDir + "BigFile.txt";
-			FMeansInterleaving(mainFilePath);
+            string mainFilePath = workingDir + "BigFile.txt";
+            if (useFmeans)
+            {
+                FMeansMerge(mainFilePath);
+            }
+            else
+            {
+                PolyphasicMerge(mainFilePath);
+            }
 		}
-		private static void PolyphasicInterleaving (string mainFilePath)
+		private static void PolyphasicMerge (string mainFilePath)
 		{
-
-		}
-		private static void FMeansInterleaving(string mainFilePath)
+            if(maxAuxFilesNumber < 2)
+            {
+                throw new Exception("Number of aux files should be superior to two (2)");
+            }
+            StreamReader mainReader = new StreamReader(mainFilePath);
+            fileSize = mainReader.BaseStream.Length;
+            // Less 1 because the original is going to be used as well
+            StreamWriter[] writers = CreateAuxFiles(maxAuxFilesNumber, workingDir);
+            PolyphasicInitialPopulate(mainReader, writers[0], writers[1]);
+            AuxiliarFiles auxiliarFiles = new AuxiliarFiles(writers);
+            PolyphasicIteration(auxiliarFiles);
+            auxiliarFiles.End();
+        }
+        private static void PolyphasicIteration(AuxiliarFiles auxiliarFiles)
+        {
+            long a, b;
+            for (long i = NextFib(2, out a, out b); i <= fileSize; i = NextFib(i+1, out a, out b))
+            {
+                MergeTwoFiles(auxiliarFiles, a, b);
+                auxiliarFiles.Next();
+            }
+        }
+        private static bool AnyFinish(AuxiliarFiles aux)
+        {
+            return aux.Reader.EndOfStream || aux.Intercalator.EndOfStream;
+        }
+        private static bool CharsFlushed(char a, char b)
+        {
+            return a == char.MaxValue && b == char.MaxValue;
+        }
+        private static void MergeTwoFiles(AuxiliarFiles aux, long readerBlockSize, long intercalatorBlockSize)
+        {
+            bool readerIsUpdated = false, intercalatorIsUpdated = false;
+            char readerPointerValue = char.MaxValue, intercalatorPointerValue = char.MaxValue;
+            long readerCharsRead = 0, intercalatorCharsRead = 0;
+            while(!AnyFinish(aux) || !CharsFlushed(readerPointerValue,intercalatorPointerValue))
+            {
+                if (readerIsUpdated == false)
+                {
+                    if (readerCharsRead < readerBlockSize)
+                    {
+                        readerPointerValue = (char)aux.Reader.Read();
+                        readerIsUpdated = true;
+                        readerCharsRead++;
+                    }
+                    else
+                    {
+                        readerPointerValue = char.MaxValue;
+                    }
+                }
+                if (intercalatorIsUpdated == false)
+                {
+                    if (intercalatorCharsRead < intercalatorBlockSize)
+                    {
+                        intercalatorPointerValue = (char)aux.Intercalator.Read();
+                        intercalatorIsUpdated = true;
+                        intercalatorCharsRead++;
+                    }
+                    else
+                    {
+                        intercalatorPointerValue = char.MaxValue;
+                    }
+                }
+                if (readerPointerValue == char.MaxValue && intercalatorPointerValue == char.MaxValue)
+                {
+                    readerCharsRead = 0;
+                    intercalatorCharsRead = 0;
+                    continue;
+                }
+                if (readerPointerValue < intercalatorPointerValue)
+                {
+                    aux.Writer.Write(readerPointerValue);
+                    readerIsUpdated = false;
+                }
+                else
+                {
+                    aux.Writer.Write(intercalatorPointerValue);
+                    intercalatorIsUpdated = false;
+                }
+            }
+        }
+        private static void PolyphasicInitialPopulate(StreamReader main, StreamWriter firstWriter, StreamWriter secondWriter)
+        {
+            NextFib(fileSize, out long secondSize, out long firstSize);
+            for(long i = 0; i < firstSize; i++)
+            {
+                secondWriter.Write((char)main.Read());
+            }
+            for(long i = 0; i < secondSize; i++)
+            {
+                firstWriter.Write((char)main.Read());
+            }
+        }
+        public static long NextFib(long size, out long a, out long b)
+        {
+            a = 0;
+            b = 1;
+            long c;
+            while(size > a + b)
+            {
+                c = a + b;
+                a = b;
+                b = c;
+            }
+            return a+b;
+        }
+		private static void FMeansMerge(string mainFilePath)
 		{
 			StreamReader mainReader = new StreamReader(mainFilePath);
 			fileSize = mainReader.BaseStream.Length;
 			blockSize = ramSize;
-			StreamWriter[] writers = CreateAuxFiles(workingDir, blockSize);
+			StreamWriter[] writers = CreateAuxFiles(workingDir, ramSize);
 			PopulateAuxFiles(writers, ramSize, mainReader);
 			int intercalationsRequired = (int)Math.Ceiling(Math.Log((float)fileSize/ramSize,maxAuxFilesNumber));
 			for(int i = 0; i < intercalationsRequired; i++)
@@ -52,7 +245,6 @@ namespace ExternalMergeSort
 				StreamReader[] readers = SwitchStreams(writers);
 				//int blockSize = (int)Math.Pow(ramSize, i) * ramSize;
 				writers = CreateAuxFiles(workingDir, blockSize * maxAuxFilesNumber);
-				int x = (int)Math.Pow(2,i) * ramSize;
 				IntercalateAuxFiles(writers, readers, blockSize);
 				blockSize *= maxAuxFilesNumber;
 			}
@@ -61,7 +253,6 @@ namespace ExternalMergeSort
 
 		private static void IntercalateAuxFiles(StreamWriter[] writers, StreamReader[] readers, int blockSize)
 		{
-			int newBlockSize = blockSize * ramSize;
 			int iterations = (int)Math.Ceiling((double) fileSize / (blockSize * maxAuxFilesNumber));
 			for (int i = 0; i < iterations; i++)
 			{
@@ -167,28 +358,43 @@ namespace ExternalMergeSort
 				return writer;
 			}
 			int auxFiles = createOnlyNecessaryAuxFiles ? minAuxFiles : maxAuxFilesNumber;
-			StreamWriter[] writers = new StreamWriter[auxFiles];
-			for(int i = 0; i < auxFiles; i++)
-			{
-				writers[i] = new StreamWriter(workingDir + "Aux" + AuxNumber + ".txt");
-			}
-			return writers;
+            return CreateAuxFiles(auxFiles, workingDir);
 		}
+        private static StreamWriter[] CreateAuxFiles(int numberOfFiles, string workingDir)
+        {
+            StreamWriter[] writers = new StreamWriter[numberOfFiles];
+            for (int i = 0; i < numberOfFiles; i++)
+            {
+                writers[i] = new StreamWriter(workingDir + "Aux" + AuxNumber + ".txt");
+            }
+            return writers;
+        }
+        public static StreamReader SwitchStream(StreamWriter writer)
+        {
+            string filename = (writer.BaseStream as FileStream).Name;
+            writer.Close();
+            StreamReader reader = new StreamReader(filename);
+            reader.BaseStream.Position = 0;
+            reader.DiscardBufferedData();
+            reader.BaseStream.Seek(0, SeekOrigin.Begin);
+            return reader;
+        }
+        public static StreamWriter SwitchStream(StreamReader reader)
+        {
+            string filename = (reader.BaseStream as FileStream).Name;
+            reader.Close();
+            StreamWriter writer = new StreamWriter(filename);
+            return writer;
+        }
 
-		private static StreamReader[] SwitchStreams(StreamWriter[] writers)
+        public static StreamReader[] SwitchStreams(StreamWriter[] writers)
 		{
 			StreamReader[] readers = new StreamReader[writers.Length];
 			for (int i = 0; i < writers.Length; i++)
 			{
-				string filename = (writers[i].BaseStream as FileStream).Name;
-				writers[i].Close();
-				readers[i] = new StreamReader(filename);
-				readers[i].BaseStream.Position = 0;
-				readers[i].DiscardBufferedData();
-				readers[i].BaseStream.Seek(0, SeekOrigin.Begin);
+				readers[i] = SwitchStream(writers[i]);
 			}
 			return readers;
 		}
-
 	}
 }
