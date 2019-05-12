@@ -51,9 +51,21 @@ namespace ExternalMergeSort
             reader = intercalator;
             intercalator = ExternalSort.SwitchStream(others.Dequeue());
         }
-
-        public void End()
+        private void CreateOutput(string wd, StreamReader finalUnfiltered)
         {
+            StreamWriter output = new StreamWriter(wd + "Output.txt");
+            for (int i = 0; i < finalUnfiltered.BaseStream.Length; i++)
+            {
+                char readChar = (char)finalUnfiltered.Read();
+                if (readChar == ExternalSort.NoDataChar)
+                    break;
+                output.Write(readChar);
+            }
+            output.Close();
+        }
+        public void End(string wd)
+        {
+            CreateOutput(wd, intercalator);
             reader.Close();
             intercalator.Close();
             while(others.Count > 0)
@@ -104,6 +116,7 @@ namespace ExternalMergeSort
 
 		private static int blockSize;
 
+        public static readonly char NoDataChar = (char)(char.MaxValue - 1);
 		private static int AuxNumber
 		{
 			get
@@ -137,12 +150,13 @@ namespace ExternalMergeSort
             PolyphasicInitialPopulate(mainReader, writers[0], writers[1]);
             AuxiliarFiles auxiliarFiles = new AuxiliarFiles(writers);
             PolyphasicIteration(auxiliarFiles);
-            auxiliarFiles.End();
+            auxiliarFiles.End(workingDir);
         }
         private static void PolyphasicIteration(AuxiliarFiles auxiliarFiles)
         {
             long a, b;
-            for (long i = NextFib(2, out a, out b); i <= fileSize; i = NextFib(i+1, out a, out b))
+            long fibThatFit = NextFib(fileSize);
+            for (long i = NextFib(2, out a, out b); i <= fibThatFit; i = NextFib(i+1, out a, out b))
             {
                 MergeTwoFiles(auxiliarFiles, a, b);
                 auxiliarFiles.Next();
@@ -214,11 +228,20 @@ namespace ExternalMergeSort
             {
                 secondWriter.Write((char)main.Read());
             }
-            for(long i = 0; i < secondSize; i++)
+            for(long i = firstSize; i < fileSize; i++)
             {
                 firstWriter.Write((char)main.Read());
             }
+            for (long i = fileSize; i < firstSize + secondSize; i++)
+            {
+                firstWriter.Write(NoDataChar);
+            }
         }
+        public static long NextFib(long size)
+        {
+            return NextFib(size, out _, out _);
+        }
+
         public static long NextFib(long size, out long a, out long b)
         {
             a = 0;
